@@ -58,25 +58,48 @@ jobs:
           python -m pip install --upgrade pip
           pip install bandit pip-audit
 
+      - name: Preparar pasta de relatórios
+        run: mkdir -p security-reports
+
       - name: Executar Bandit
-        run: bandit -r todo_project/todo_project -f txt
-        continue-on-error: true
+        run: |
+          bandit -r todo_project/todo_project -f txt -o security-reports/bandit-report.txt || true
 
       - name: Executar OWASP Dependency-Check
         run: |
-          mkdir -p dependency-check-report
           docker run --rm \
             -v "${{ github.workspace }}":/src \
-            -v "${{ github.workspace }}/dependency-check-report":/report \
+            -v "${{ github.workspace }}/security-reports":/report \
             owasp/dependency-check:latest \
             --project "Task Manager Flask" \
             --scan /src \
             --out /report \
             --format "HTML" \
+            --format "JSON" \
             --enableExperimental \
-            --failOnCVSS 11
-        continue-on-error: true
+            --failOnCVSS 11 || true
 
       - name: Executar pip-audit complementar
-        run: pip-audit -r requirements.txt
-        continue-on-error: true
+        run: |
+          pip-audit -r requirements.txt > security-reports/pip-audit-report.txt || true
+
+      - name: Gerar resumo da Etapa 4
+        run: |
+          echo "# Resumo da Etapa 4 - SAST e Dependências" > security-reports/resumo-etapa-4.md
+          echo "" >> security-reports/resumo-etapa-4.md
+          echo "Projeto: Task Manager using Flask" >> security-reports/resumo-etapa-4.md
+          echo "Ferramentas executadas: Bandit, OWASP Dependency-Check e pip-audit." >> security-reports/resumo-etapa-4.md
+          echo "" >> security-reports/resumo-etapa-4.md
+          echo "Relatórios gerados:" >> security-reports/resumo-etapa-4.md
+          echo "- bandit-report.txt" >> security-reports/resumo-etapa-4.md
+          echo "- dependency-check-report.html" >> security-reports/resumo-etapa-4.md
+          echo "- dependency-check-report.json" >> security-reports/resumo-etapa-4.md
+          echo "- pip-audit-report.txt" >> security-reports/resumo-etapa-4.md
+          cat security-reports/resumo-etapa-4.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publicar relatórios de segurança
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports
+          path: security-reports/
