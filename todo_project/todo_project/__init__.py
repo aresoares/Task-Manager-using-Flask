@@ -9,4 +9,19 @@ from flask_bcrypt import Bcrypt
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    "DATABASE_URL",
+    "sqlite:///site.db"
+)
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
 db = SQLAlchemy(app)
+
+login_manager = LoginManager(app)
+login_manager.login_view = "login"
+login_manager.login_message_category = "danger"
+
+bcrypt = Bcrypt(app)
+
+# Always put Routes at end
+from todo_project import routes
