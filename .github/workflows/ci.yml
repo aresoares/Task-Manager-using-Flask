@@ -8,6 +8,9 @@ on:
     branches:
       - master
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     name: Build, validação e testes da aplicação Flask
@@ -62,8 +65,7 @@ jobs:
         run: mkdir -p security-reports
 
       - name: Executar Bandit
-        run: |
-          bandit -r todo_project/todo_project -f txt -o security-reports/bandit-report.txt || true
+        run: bandit -r todo_project/todo_project -f txt -o security-reports/bandit-report.txt || true
 
       - name: Executar OWASP Dependency-Check
         run: |
@@ -80,8 +82,7 @@ jobs:
             --failOnCVSS 11 || true
 
       - name: Executar pip-audit complementar
-        run: |
-          pip-audit -r requirements.txt > security-reports/pip-audit-report.txt || true
+        run: pip-audit -r requirements.txt > security-reports/pip-audit-report.txt || true
 
       - name: Gerar resumo da Etapa 4
         run: |
@@ -119,6 +120,9 @@ jobs:
       - name: Criar rede Docker de stage
         run: docker network create taskmanager-stage-net
 
+      - name: Preparar relatórios DAST de stage
+        run: mkdir -p stage-zap-reports
+
       - name: Subir aplicação em ambiente de stage
         run: |
           docker run -d \
@@ -127,15 +131,20 @@ jobs:
             -e SECRET_KEY=stage-secret-key \
             task-manager-flask:stage
 
-      - name: Validar aplicação em stage
+      - name: Aguardar aplicação em stage
         run: |
-          docker run --rm \
-            --network taskmanager-stage-net \
-            curlimages/curl:latest \
-            curl -I http://task-manager-stage:5000
-
-      - name: Preparar relatórios DAST de stage
-        run: mkdir -p stage-zap-reports
+          for i in {1..30}; do
+            if docker run --rm --network taskmanager-stage-net curlimages/curl:latest -fsS -I http://task-manager-stage:5000; then
+              echo "Aplicação em stage respondeu com sucesso."
+              exit 0
+            fi
+            echo "Aguardando aplicação em stage... tentativa $i"
+            docker logs task-manager-stage || true
+            sleep 2
+          done
+          echo "Aplicação em stage não respondeu dentro do tempo esperado."
+          docker logs task-manager-stage || true
+          exit 1
 
       - name: Executar DAST pós-deploy com OWASP ZAP
         run: |
