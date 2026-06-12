@@ -103,3 +103,56 @@ jobs:
         with:
           name: security-reports
           path: security-reports/
+
+  cd_staging:
+    name: CD - Deploy em stage e DAST pós-deploy
+    runs-on: ubuntu-latest
+    needs: sast
+
+    steps:
+      - name: Baixar código do repositório
+        uses: actions/checkout@v6
+
+      - name: Build da imagem Docker
+        run: docker build -t task-manager-flask:stage .
+
+      - name: Criar rede Docker de stage
+        run: docker network create taskmanager-stage-net
+
+      - name: Subir aplicação em ambiente de stage
+        run: |
+          docker run -d \
+            --name task-manager-stage \
+            --network taskmanager-stage-net \
+            -e SECRET_KEY=stage-secret-key \
+            task-manager-flask:stage
+
+      - name: Validar aplicação em stage
+        run: |
+          docker run --rm \
+            --network taskmanager-stage-net \
+            curlimages/curl:latest \
+            curl -I http://task-manager-stage:5000
+
+      - name: Preparar relatórios DAST de stage
+        run: mkdir -p stage-zap-reports
+
+      - name: Executar DAST pós-deploy com OWASP ZAP
+        run: |
+          docker run --rm \
+            --network taskmanager-stage-net \
+            -v "${{ github.workspace }}/stage-zap-reports":/zap/wrk/:rw \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+            -t http://task-manager-stage:5000 \
+            -r stage-zap-report.html \
+            -w stage-zap-report.md \
+            -J stage-zap-report.json \
+            -I || true
+
+      - name: Publicar relatórios DAST de stage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage-zap-reports
+          path: stage-zap-reports/
