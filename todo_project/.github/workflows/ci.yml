@@ -1,0 +1,37 @@
+name: CI - Task Manager Flask
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Build e validação da aplicação Flask
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar código do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Atualizar pip
+        run: python -m pip install --upgrade pip
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Validar sintaxe do projeto
+        run: python -m compileall todo_project
+
+      - name: Validar inicialização da aplicação
+        run: |
+          cd todo_project
+          python -c "from todo_project import app; print('Aplicação Flask importada com sucesso:', app.name)"
