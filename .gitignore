@@ -128,3 +128,19 @@ dmypy.json
 # Pyre type checker
 .pyre/
 todo_project/todo_project/site.db
+
+# Flask / banco local
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Relatórios gerados localmente
+zap-reports/
+security-reports/
+dependency-check-report/
+
+# Variáveis de ambiente e logs
+.env
+.env.*
+*.log
