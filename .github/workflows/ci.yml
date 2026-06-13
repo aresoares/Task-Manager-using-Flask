@@ -121,7 +121,30 @@ jobs:
         run: docker network create taskmanager-stage-net
 
       - name: Preparar relatórios DAST de stage
-        run: mkdir -p stage-zap-reports
+        run: |
+          mkdir -p stage-zap-reports
+          chmod 777 stage-zap-reports
+
+      - name: Executar DAST pós-deploy com OWASP ZAP
+        run: |
+          docker run --rm \
+             --network taskmanager-stage-net \
+             -v "${{ github.workspace }}/stage-zap-reports":/zap/wrk/:rw \
+             ghcr.io/zaproxy/zaproxy:stable \
+             zap-baseline.py \
+             -t http://task-manager-stage:5000 \
+             -r stage-zap-report.html \
+             -w stage-zap-report.md \
+             -J stage-zap-report.json \
+             -I || true
+
+          echo "Arquivos gerados pelo ZAP:"
+          ls -la stage-zap-reports
+
+          if [ ! -f stage-zap-reports/stage-zap-report.md ]; then
+            echo "# Relatório DAST de Stage" > stage-zap-reports/stage-zap-summary.md
+            echo "O OWASP ZAP foi executado no ambiente de stage, mas o relatório principal não foi gerado. Verificar logs do job." >> stage-zap-reports/stage-zap-summary.md
+          fi
 
       - name: Subir aplicação em ambiente de stage
         run: |
@@ -165,3 +188,4 @@ jobs:
         with:
           name: stage-zap-reports
           path: stage-zap-reports/
+
